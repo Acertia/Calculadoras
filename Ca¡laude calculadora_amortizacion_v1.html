@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FINCALC · Cuadro de Amortización</title>
+  <script>
+    (function(){
+      const svg=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='5' fill='%2307111F'/><rect x='3' y='3' width='26' height='26' rx='4' fill='none' stroke='%23378ADD' stroke-width='1'/><rect x='5' y='20' width='4' height='7' rx='1' fill='%23378ADD'/><rect x='11' y='15' width='4' height='12' rx='1' fill='%2385B7EB'/><rect x='17' y='10' width='4' height='17' rx='1' fill='%23B5D4F4'/><rect x='23' y='6' width='4' height='21' rx='1' fill='%23E6F1FB' opacity='.4'/><polyline points='7,19 13,14 19,9 25,5' fill='none' stroke='%235DCAA5' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>`;
+      const link=document.createElement('link');
+      link.rel='icon'; link.type='image/svg+xml';
+      link.href='data:image/svg+xml,'+svg;
+      document.head.appendChild(link);
+    })();
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ff-sans: 'IBM Plex Sans', sans-serif;
+      --ff-mono: 'IBM Plex Mono', monospace;
+      --blue-dark:   #0C447C;
+      --blue-main:   #185FA5;
+      --blue-mid:    #378ADD;
+      --blue-light:  #85B7EB;
+      --blue-pale:   #B5D4F4;
+      --blue-ghost:  #E6F1FB;
+      --gray-900:    #1A1A1A;
+      --gray-600:    #555555;
+      --gray-400:    #888888;
+      --gray-200:    #DDDDDD;
+      --gray-100:    #F4F4F4;
+      --surface:     #FFFFFF;
+      --page-bg:     #F0F4F8;
+      --cyan:        #1D9E75;
+      --amber:       #BA7517;
+      --red:         #A32D2D;
+    }
+
+    body {
+      font-family: var(--ff-sans);
+      background: var(--page-bg);
+      color: var(--gray-900);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* ── CABECERA ── */
+    .header {
+      margin-bottom: 1.75rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .header-icon { width: 36px; height: 36px; flex-shrink: 0; }
+    .header-sys { font-size: 10px; font-family: var(--ff-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--gray-400); margin-bottom: 4px; }
+    .header-title { font-size: 22px; font-weight: 300; letter-spacing: -.01em; color: var(--gray-900); }
+    .header-title strong { font-weight: 500; color: var(--blue-main); }
+    .header-status { font-size: 10px; font-family: var(--ff-mono); color: var(--cyan); letter-spacing: .1em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); flex-shrink: 0; }
+
+    /* ── PANELES ── */
+    .panel {
+      background: var(--surface);
+      border: 0.5px solid var(--gray-200);
+      border-radius: 8px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .panel-hdr {
+      background: var(--gray-100);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 0.5px solid var(--gray-200);
+    }
+    .panel-hdr-bar { width: 3px; height: 14px; border-radius: 1px; background: var(--blue-mid); flex-shrink: 0; }
+    .panel-hdr-txt { font-size: 10px; font-family: var(--ff-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--gray-600); }
+    .panel-body { padding: 16px; }
+
+    /* ── GRIDS ── */
+    .g4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+    .g3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+    .g2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+
+    /* ── CAMPOS ── */
+    .field label {
+      display: block;
+      font-size: 10px;
+      font-family: var(--ff-mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--gray-400);
+      margin-bottom: 5px;
+    }
+    .field input, .field select {
+      width: 100%;
+      background: #fff;
+      border: 0.5px solid var(--gray-200);
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: var(--ff-mono);
+      color: var(--gray-900);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .field input:focus, .field select:focus {
+      border-color: var(--blue-mid);
+      box-shadow: 0 0 0 3px rgba(55,138,221,.12);
+    }
+    .field select { cursor: pointer; }
+    .field input[type="date"] { cursor: pointer; }
+
+    /* ── REVISIONES ── */
+    .rev-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 0.5px solid var(--gray-100);
+    }
+    .rev-row:last-child { border-bottom: none; margin-bottom: 0; }
+
+    /* ── BOTONES ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: var(--ff-mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: 0.5px solid var(--gray-200);
+      background: var(--surface);
+      color: var(--gray-600);
+      transition: all .15s;
+    }
+    .btn:hover { background: var(--gray-100); border-color: var(--gray-400); }
+    .btn:active { transform: scale(.98); }
+    .btn-primary { background: var(--blue-main); color: #fff; border-color: var(--blue-main); }
+    .btn-primary:hover { background: var(--blue-dark); border-color: var(--blue-dark); }
+    .btn-add { border-style: dashed; color: var(--gray-400); }
+    .btn-add:hover { border-color: var(--blue-mid); color: var(--blue-mid); border-style: solid; }
+    .btn-rm { border-color: transparent; color: var(--gray-400); padding: 8px 10px; }
+    .btn-rm:hover { color: var(--red); background: #FCEBEB; border-color: transparent; }
+    .btn-xl { padding: 10px 28px; font-size: 12px; }
+
+    /* ── KPIs ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .kpi {
+      background: var(--gray-100);
+      border-radius: 6px;
+      padding: 14px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--gray-200);
+    }
+    .kpi.accent::after { background: var(--blue-main); }
+    .kpi-lbl { font-size: 10px; font-family: var(--ff-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--gray-400); margin-bottom: 8px; }
+    .kpi-val { font-size: 18px; font-family: var(--ff-mono); font-weight: 500; color: var(--gray-900); }
+    .kpi.accent .kpi-val { color: var(--blue-main); }
+    .kpi-sub { font-size: 10px; color: var(--gray-400); font-family: var(--ff-mono); margin-top: 4px; }
+
+    /* ── TABLA ── */
+    .tbl-wrap {
+      overflow-x: auto;
+      border-radius: 6px;
+      border: 0.5px solid var(--gray-200);
+    }
+    table { width: 100%; border-collapse: collapse; font-family: var(--ff-mono); font-size: 12px; }
+    thead tr { background: var(--gray-100); }
+    thead th {
+      padding: 9px 12px;
+      text-align: right;
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--gray-400);
+      border-bottom: 0.5px solid var(--gray-200);
+      white-space: nowrap;
+    }
+    thead th:nth-child(1) { text-align: center; width: 48px; }
+    thead th:nth-child(2) { text-align: left; }
+    tbody tr { border-bottom: 0.5px solid var(--gray-100); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--blue-ghost); }
+    tbody td { padding: 7px 12px; text-align: right; color: var(--gray-900); }
+    tbody td:nth-child(1) { text-align: center; color: var(--gray-400); font-size: 11px; }
+    tbody td:nth-child(2) { text-align: left; color: var(--gray-600); }
+    tbody td:nth-child(3) { color: var(--gray-600); }
+    tbody tr.rev-tr { background: rgba(55,138,221,.04); }
+    tbody tr.rev-tr td:nth-child(3) { color: var(--blue-main); font-weight: 500; }
+    tfoot tr { background: var(--gray-100); border-top: 0.5px solid var(--gray-200); }
+    tfoot td { padding: 9px 12px; text-align: right; font-weight: 500; font-size: 11px; color: var(--gray-900); }
+    tfoot td:nth-child(1), tfoot td:nth-child(2) { text-align: left; color: var(--gray-400); }
+    tfoot td:nth-child(3) { color: var(--gray-400); }
+
+    /* ── BADGE ── */
+    .badge {
+      display: inline-block;
+      font-size: 8px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--blue-ghost);
+      color: var(--blue-dark);
+      border: 0.5px solid var(--blue-pale);
+      letter-spacing: .05em;
+      margin-left: 5px;
+      vertical-align: middle;
+    }
+
+    /* ── BARRA DE ACCIONES ── */
+    .action-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .meta-txt { font-size: 10px; font-family: var(--ff-mono); color: var(--gray-400); letter-spacing: .06em; text-transform: uppercase; }
+
+    .calc-bar { display: flex; gap: 10px; align-items: center; padding-top: 2px; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 680px) {
+      .g4, .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .g3 { grid-template-columns: 1fr 1fr; }
+      .rev-row { grid-template-columns: 1fr 1fr; }
+      .header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- CABECERA -->
+  <div class="header">
+    <div class="header-left">
+      <svg class="header-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="5" fill="#07111F"/>
+        <rect x="3" y="3" width="26" height="26" rx="4" fill="none" stroke="#378ADD" stroke-width="1"/>
+        <rect x="5" y="20" width="4" height="7" rx="1" fill="#378ADD"/>
+        <rect x="11" y="15" width="4" height="12" rx="1" fill="#85B7EB"/>
+        <rect x="17" y="10" width="4" height="17" rx="1" fill="#B5D4F4"/>
+        <rect x="23" y="6" width="4" height="21" rx="1" fill="#E6F1FB" opacity=".4"/>
+        <polyline points="7,19 13,14 19,9 25,5" fill="none" stroke="#5DCAA5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <div class="header-sys">FINCALC · v1.0</div>
+        <div class="header-title">Cuadro de <strong>Amortización</strong></div>
+      </div>
+    </div>
+    <div class="header-status"><span class="status-dot"></span>Sistema activo</div>
+  </div>
+
+  <!-- PARÁMETROS -->
+  <div class="panel">
+    <div class="panel-hdr">
+      <div class="panel-hdr-bar"></div>
+      <span class="panel-hdr-txt">Parámetros del préstamo</span>
+    </div>
+    <div class="panel-body">
+      <div class="g4" style="margin-bottom:12px">
+        <div class="field">
+          <label>Capital · €</label>
+          <input type="number" id="capital" value="150000" min="0" step="1000">
+        </div>
+        <div class="field">
+          <label>Tipo nominal · %</label>
+          <input type="number" id="tae" value="4.00" min="0" step="0.01">
+        </div>
+        <div class="field">
+          <label>Nº períodos</label>
+          <input type="number" id="plazo" value="240" min="1">
+        </div>
+        <div class="field">
+          <label>Periodicidad</label>
+          <select id="periodo">
+            <option value="12">Mensual  ×12/año</option>
+            <option value="4">Trimestral  ×4/año</option>
+            <option value="2">Semestral  ×2/año</option>
+            <option value="1">Anual  ×1/año</option>
+          </select>
+        </div>
+      </div>
+      <div class="g3">
+        <div class="field">
+          <label>Fecha inicio</label>
+          <input type="date" id="fInicio">
+        </div>
+        <div class="field">
+          <label>Sistema amortización</label>
+          <select id="sistema">
+            <option value="frances">Francés — cuota constante</option>
+            <option value="aleman">Alemán — capital constante</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Comisión apertura · €</label>
+          <input type="number" id="comision" value="0" min="0" step="100">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REVISIONES DE TIPO -->
+  <div class="panel">
+    <div class="panel-hdr">
+      <div class="panel-hdr-bar" style="background:#BA7517"></div>
+      <span class="panel-hdr-txt">Revisiones de tipo de interés</span>
+    </div>
+    <div class="panel-body">
+      <div id="revisiones"></div>
+      <button class="btn btn-add" onclick="addRevision()" style="margin-top:8px">
+        + Añadir revisión de tipo
+      </button>
+    </div>
+  </div>
+
+  <!-- BOTÓN CALCULAR -->
+  <div class="calc-bar">
+    <button class="btn btn-primary btn-xl" onclick="calcular()">▶ Calcular cuadro</button>
+  </div>
+
+  <!-- RESULTADOS -->
+  <div id="resultados" style="display:none; margin-top:16px">
+
+    <div class="kpi-grid" id="metrics"></div>
+
+    <div class="panel">
+      <div class="panel-hdr" style="justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="panel-hdr-bar"></div>
+          <span class="panel-hdr-txt" id="infoTag">Cuadro de amortización</span>
+        </div>
+        <button class="btn" onclick="exportarExcel()" style="padding:5px 14px;font-size:9px">
+          ↓ Descargar Excel
+        </button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nº</th>
+              <th>Fecha</th>
+              <th>Tipo %</th>
+              <th>Cuota €</th>
+              <th>Capital €</th>
+              <th>Intereses €</th>
+              <th>Amort. acum. €</th>
+              <th>Capital pdte. €</th>
+            </tr>
+          </thead>
+          <tbody id="tblBody"></tbody>
+          <tfoot id="tblFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /resultados -->
+</div><!-- /container -->
+
+<script>
+  let cuadroData = [];
+  const fmt  = v => v.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtP = v => v.toLocaleString('es-ES', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+
+  // Fecha de inicio por defecto: 1º del mes siguiente
+  (function () {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + 1);
+    document.getElementById('fInicio').value = d.toISOString().slice(0, 10);
+  })();
+
+  let rc = 0;
+  function addRevision(c, t, d) {
+    rc++;
+    const div = document.createElement('div');
+    div.className = 'rev-row';
+    div.id = 'rv' + rc;
+    div.innerHTML = `
+      <div class="field">
+        <label>Desde cuota nº</label>
+        <input type="number" min="2" step="1" placeholder="ej: 13" value="${c || ''}" class="rv-c">
+      </div>
+      <div class="field">
+        <label>Nuevo tipo · %</label>
+        <input type="number" min="0" step="0.01" placeholder="ej: 5.50" value="${t || ''}" class="rv-t">
+      </div>
+      <div class="field">
+        <label>Descripción</label>
+        <input type="text" placeholder="Revisión Euribor" value="${d || ''}">
+      </div>
+      <div>
+        <button class="btn btn-rm" onclick="document.getElementById('rv${rc}').remove()">✕</button>
+      </div>`;
+    document.getElementById('revisiones').appendChild(div);
+  }
+
+  function getRevs() {
+    return [...document.querySelectorAll('#revisiones .rev-row')].map(r => {
+      const c = parseInt(r.querySelector('.rv-c').value);
+      const t = parseFloat(r.querySelector('.rv-t').value);
+      const d = r.querySelectorAll('input')[2].value;
+      return (!isNaN(c) && !isNaN(t) && c >= 2) ? { cuota: c, tipo: t, desc: d } : null;
+    }).filter(Boolean).sort((a, b) => a.cuota - b.cuota);
+  }
+
+  function addPeriods(date, n, freq) {
+    const d = new Date(date);
+    d.setMonth(d.getMonth() + Math.round(12 / freq) * n);
+    return d;
+  }
+  function fmtD(d) {
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  function calcular() {
+    const capital = parseFloat(document.getElementById('capital').value);
+    const taeI    = parseFloat(document.getElementById('tae').value);
+    const plazo   = parseInt(document.getElementById('plazo').value);
+    const freq    = parseInt(document.getElementById('periodo').value);
+    const sis     = document.getElementById('sistema').value;
+    const com     = parseFloat(document.getElementById('comision').value) || 0;
+    const fi      = new Date(document.getElementById('fInicio').value);
+    const revs    = getRevs();
+
+    if ([capital, taeI, plazo, freq].some(isNaN)) {
+      alert('Completa todos los campos obligatorios.');
+      return;
+    }
+
+    cuadroData = [];
+    let saldo = capital, tipo = taeI, totI = 0, totA = 0, totC = 0;
+    const capAl = capital / plazo;
+
+    for (let i = 1; i <= plazo; i++) {
+      const rv = revs.find(r => r.cuota === i);
+      if (rv) tipo = rv.tipo;
+      const r   = tipo / (freq * 100);
+      const int = saldo * r;
+      let am, cuo;
+      if (sis === 'frances') {
+        const rest = plazo - i + 1;
+        cuo = saldo * (r === 0 ? 1 / rest : r / (1 - Math.pow(1 + r, -rest)));
+        am  = cuo - int;
+      } else {
+        am  = capAl;
+        cuo = am + int;
+      }
+      if (i === plazo) { am = saldo; cuo = am + int; }
+      const sf = Math.max(0, saldo - am);
+      totI += int; totA += am; totC += cuo;
+      cuadroData.push({
+        n: i, fecha: fmtD(addPeriods(fi, i - 1, freq)),
+        tipo: fmtP(tipo), cuota: cuo, amort: am, interes: int,
+        amortAcum: totA, saldoPdte: sf,
+        rev: rv ? rv.desc || 'Revisión' : null
+      });
+      saldo = sf;
+      if (saldo < 0.005) break;
+    }
+
+    const c0 = cuadroData[0];
+    const periodoLabel = freq === 12 ? 'mensual' : freq === 4 ? 'trimestral' : freq === 2 ? 'semestral' : 'anual';
+    document.getElementById('metrics').innerHTML = `
+      <div class="kpi">
+        <div class="kpi-lbl">Capital inicial</div>
+        <div class="kpi-val">${fmt(capital)} €</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-lbl">Total intereses</div>
+        <div class="kpi-val">${fmt(totI)} €</div>
+        <div class="kpi-sub">${fmt(totI / capital * 100)} % sobre capital</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-lbl">Coste total préstamo</div>
+        <div class="kpi-val">${fmt(totC + com)} €</div>
+        <div class="kpi-sub">incl. comisión apertura</div>
+      </div>
+      <div class="kpi accent">
+        <div class="kpi-lbl">${sis === 'frances' ? 'Cuota inicial' : 'Cuota período 1'}</div>
+        <div class="kpi-val">${fmt(c0.cuota)} €</div>
+        <div class="kpi-sub">${periodoLabel}</div>
+      </div>`;
+
+    let html = '';
+    cuadroData.forEach(r => {
+      html += `<tr class="${r.rev ? 'rev-tr' : ''}">
+        <td>${r.n}</td>
+        <td>${r.fecha}</td>
+        <td>${r.tipo}${r.rev ? `<span class="badge">${r.rev}</span>` : ''}</td>
+        <td>${fmt(r.cuota)}</td>
+        <td>${fmt(r.amort)}</td>
+        <td>${fmt(r.interes)}</td>
+        <td>${fmt(r.amortAcum)}</td>
+        <td>${fmt(r.saldoPdte)}</td>
+      </tr>`;
+    });
+    document.getElementById('tblBody').innerHTML = html;
+    document.getElementById('tblFoot').innerHTML = `
+      <tr>
+        <td colspan="2">Totales</td>
+        <td>—</td>
+        <td>${fmt(totC)}</td>
+        <td>${fmt(totA)}</td>
+        <td>${fmt(totI)}</td>
+        <td>—</td>
+        <td>—</td>
+      </tr>`;
+
+    document.getElementById('infoTag').textContent =
+      `Cuadro · ${cuadroData.length} períodos · ${revs.length} revisión(es)`;
+    document.getElementById('resultados').style.display = 'block';
+    document.getElementById('resultados').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function exportarExcel() {
+    if (!cuadroData.length) { alert('Calcula el cuadro primero.'); return; }
+    const capital = parseFloat(document.getElementById('capital').value);
+    const tae     = parseFloat(document.getElementById('tae').value);
+    const plazo   = parseInt(document.getElementById('plazo').value);
+    const sis     = document.getElementById('sistema').value;
+    const com     = parseFloat(document.getElementById('comision').value) || 0;
+    const wb = XLSX.utils.book_new();
+
+    const ws1 = XLSX.utils.aoa_to_sheet([
+      ['CUADRO DE AMORTIZACIÓN DE PRÉSTAMO'],
+      ['Generado', new Date().toLocaleDateString('es-ES')],
+      [],
+      ['Capital inicial (€)', capital],
+      ['Tipo nominal inicial (%)', tae],
+      ['Plazo (períodos)', plazo],
+      ['Sistema', sis === 'frances' ? 'Francés – cuota constante' : 'Alemán – capital constante'],
+      ['Comisión apertura (€)', com],
+      [],
+      ['Total intereses (€)',    cuadroData.reduce((s, r) => s + r.interes, 0)],
+      ['Total amortizado (€)',   cuadroData.reduce((s, r) => s + r.amort, 0)],
+      ['Total desembolsado (€)', cuadroData.reduce((s, r) => s + r.cuota, 0) + com],
+    ]);
+    ws1['!cols'] = [{ wch: 30 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws1, 'Resumen');
+
+    const hdr = ['Nº','Fecha','Tipo (%)','Cuota (€)','Amortización (€)','Intereses (€)','Amort. acumulada (€)','Capital pendiente (€)'];
+    const rows = cuadroData.map(r => [r.n, r.fecha, parseFloat(r.tipo), r.cuota, r.amort, r.interes, r.amortAcum, r.saldoPdte]);
+    const tot  = ['TOTAL','—','—',
+      cuadroData.reduce((s, r) => s + r.cuota, 0),
+      cuadroData.reduce((s, r) => s + r.amort, 0),
+      cuadroData.reduce((s, r) => s + r.interes, 0),
+      '—','—'];
+    const ws2 = XLSX.utils.aoa_to_sheet([hdr, ...rows, tot]);
+    ws2['!cols'] = [{ wch:5 },{ wch:12 },{ wch:10 },{ wch:15 },{ wch:17 },{ wch:14 },{ wch:20 },{ wch:20 }];
+    const nf = '#,##0.00';
+    for (let i = 2; i <= rows.length + 2; i++)
+      ['D','E','F','G','H'].forEach(c => { const cl = ws2[c + i]; if (cl && typeof cl.v === 'number') cl.z = nf; });
+    XLSX.utils.book_append_sheet(wb, ws2, 'Cuadro amortización');
+
+    const revs = getRevs();
+    if (revs.length) {
+      const ws3 = XLSX.utils.aoa_to_sheet([
+        ['Desde cuota', 'Tipo (%)', 'Descripción'],
+        ...revs.map(r => [r.cuota, r.tipo, r.desc || ''])
+      ]);
+      ws3['!cols'] = [{ wch:14 },{ wch:12 },{ wch:30 }];
+      XLSX.utils.book_append_sheet(wb, ws3, 'Revisiones tipo');
+    }
+    XLSX.writeFile(wb, 'Cuadro_Amortizacion.xlsx');
+  }
+</script>
+</body>
+</html>
